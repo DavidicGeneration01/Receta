@@ -2,6 +2,7 @@ import React, { useState, useContext, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { AppContext } from '../context/AppContext'
 import { assets } from '../assets/assets'
+import RelatedDoctors from '../components/RelatedDoctors'
 
 const Appointment = () => {
 
@@ -24,16 +25,32 @@ const Appointment = () => {
 
     let today = new Date()
 
-    for(let i = 0 ; i < 7; i++) {
+    for(let i = 0; i < 7; i++) {
       let currentDate = new Date(today)
-      currentDate.setDate(today.getDate()+i)
+      currentDate.setDate(today.getDate() + i)
 
       let endTime = new Date(today)
       endTime.setDate(today.getDate() + i)
-      endTime.setHours(21,0,0,0)
+      endTime.setHours(21, 0, 0, 0)
 
-      currentDate.setHours(10)
-      currentDate.setMinutes(0)
+      // ✅ For today (i === 0), start from current time rounded to next 30-min slot
+      // For other days, start from 10:00 AM
+      if (i === 0) {
+        const now = new Date()
+        const minutes = now.getMinutes()
+        const roundedMinutes = minutes < 30 ? 30 : 0
+        const hoursOffset = minutes < 30 ? 0 : 1
+
+        currentDate.setHours(now.getHours() + hoursOffset)
+        currentDate.setMinutes(roundedMinutes, 0, 0)
+
+        // If current rounded time is before 10 AM, start from 10 AM
+        if (currentDate.getHours() < 10) {
+          currentDate.setHours(10, 0, 0, 0)
+        }
+      } else {
+        currentDate.setHours(10, 0, 0, 0)
+      }
 
       let timeSlots = []
 
@@ -107,7 +124,19 @@ const Appointment = () => {
             ))
           }
         </div>
+
+        <div className='flex items-center gap-3 w-full overflow-x-scroll mt-4'>
+          {docSlots.length && docSlots[slotIndex].map((item,index)=>(
+            <p onClick={()=>setSlotTime(item.time)} className={`text-sm font-light flex-shrink-0 px-5 py-2 rounded-full cursor-pointer ${item.time === slotTime ? 'bg-primary text-white' : 'text-gray-400 border border-gray-300'}`} key={index}>
+              {item.time.toLowerCase()}
+            </p>
+          ))}
+        </div>
+        <button className='bg-primary text-white text-sm font-light px-14 py-3 rounded-full my-6'>Book an appointment</button>
       </div>
+
+      {/* ------- Related Doctors ------------- */} 
+      <RelatedDoctors docId={docId} speciality={docInfo.speciality} />  
     </div>
   )
 }
