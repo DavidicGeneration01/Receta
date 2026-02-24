@@ -15,9 +15,13 @@ const doctorSchema = new mongoose.Schema(
     address: { type: Object, required: true },
     date: { type: Date, required: true },
     slots_booked: { type: Object, default: {} },
-  },{ minimize: false })
+  },
+  { minimize: false }
+);
 
+// ✅ FIX: both sides now use "doctor" — Mongoose will auto-pluralize
+// the collection name to "doctors" in MongoDB
 const doctorModel =
-  mongoose.models.doctor || mongoose.model("doctors", doctorSchema);
+  mongoose.models.doctor || mongoose.model("doctor", doctorSchema);
 
 export default doctorModel;

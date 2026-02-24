@@ -5,6 +5,9 @@ import connectDB from './config/mongodb.js'
 import connectCloudinary from './config/cloudinary.js'
 import adminRouter from './routes/adminRoute.js'
 
+
+
+console.log('ENV CHECK:', process.env.ADMIN_EMAIL, process.env.ADMIN_PASSWORD)
 // app config
 const app = express()
 const port = process.env.PORT || 4000
