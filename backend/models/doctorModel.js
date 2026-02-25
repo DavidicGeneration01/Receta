@@ -8,20 +8,19 @@ const doctorSchema = new mongoose.Schema(
     image: { type: String, required: true },
     speciality: { type: String, required: true },
     degree: { type: String, required: true },
-    experience: { type: Number, required: true },
+    // ✅ Change Number to String to support "3 Year"
+    experience: { type: String, required: true }, 
     about: { type: String, required: true },
     available: { type: Boolean, default: true },
     fees: { type: Number, required: true },
     address: { type: Object, required: true },
-    date: { type: Date, required: true },
+    // ✅ Change Date to Number for Date.now() compatibility
+    date: { type: Number, required: true }, 
     slots_booked: { type: Object, default: {} },
   },
   { minimize: false }
 );
 
-// ✅ FIX: both sides now use "doctor" — Mongoose will auto-pluralize
-// the collection name to "doctors" in MongoDB
-const doctorModel =
-  mongoose.models.doctor || mongoose.model("doctor", doctorSchema);
+const doctorModel = mongoose.models.doctor || mongoose.model("doctor", doctorSchema);
 
 export default doctorModel;

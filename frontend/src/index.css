@@ -21,6 +21,10 @@
   @apply text-white bg-primary;
 }
 
+* {
+ @apply border-gray-300;
+}
+
 
 
 
