@@ -145,7 +145,7 @@ const bookAppointment = async (req,res) => {
             return res.json({success:false,message:'Doctor not available'})
         }
 
-        let slot_booked = docData.slots_booked
+        let slots_booked = docData.slots_booked  // ✅ FIXED: was slot_booked
 
         // checking for slot availability
         if (slots_booked[slotDate]) {
@@ -162,7 +162,7 @@ const bookAppointment = async (req,res) => {
 
         const userData = await userModel.findById(userId).select('-password')
 
-        delete  docData.slots_booked
+        delete docData.slots_booked
 
         const appointmentData = {
             userId,
@@ -190,4 +190,21 @@ const bookAppointment = async (req,res) => {
     }
 }
 
-export {registerUser, loginUser, getProfile, updateProfile, bookAppointment}
+// API to get user appointments for frontend my-appointments page
+const  listAppointment = async (req,res) => {
+    try {
+        
+        const {userId} = req.body
+        const appointments = await appointmentModel.find({userId})
+
+        res.json({success:true,appointments})
+
+    } catch (error) {
+        console.log(error)
+        res.json({success:false,message:error.message})       
+    }
+}
+
+// API 
+
+export {registerUser, loginUser, getProfile, updateProfile, bookAppointment, listAppointment}
