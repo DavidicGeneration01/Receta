@@ -1,5 +1,5 @@
 import express from 'express';
-import { registerUser, loginUser, getProfile, updateProfile, bookAppointment, listAppointment, cancelAppointment,paymentFlutterwave } from '../controllers/userController.js'
+import { registerUser, loginUser, getProfile, updateProfile, bookAppointment, listAppointment, cancelAppointment, paymentFlutterwave, verifyFlutterwave } from '../controllers/userController.js'
 import authUser from '../middlewares/authUser.js';
 import upload from '../middlewares/multer.js'
 

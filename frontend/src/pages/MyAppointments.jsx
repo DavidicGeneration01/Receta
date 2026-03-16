@@ -1,10 +1,8 @@
-import React, { useContext } from 'react'
+import React, { useContext, useState, useEffect } from 'react'
 import { AppContext } from '../context/AppContext'
-import { useState } from 'react'
 import axios from 'axios'
 import { toast } from 'react-toastify'
-import { useEffect } from 'react'
-import {useNavigate} from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 
 const MyAppointments = () => {
 
@@ -53,51 +51,31 @@ const MyAppointments = () => {
     }
   }
 
-  // Triggers the Flutterwave modal with order data received from the backend
+  // Opens Flutterwave hosted payment page in a new tab
   const initPay = (order) => {
-    FlutterwaveCheckout({
+    const paymentData = {
       public_key: import.meta.env.VITE_FLW_PUBLIC_KEY,
-      tx_ref: "txref-" + order.receipt + "-" + Date.now(),  // unique transaction reference
+      tx_ref: "txref-" + order.receipt + "-" + Date.now(),
       amount: order.amount,
       currency: order.currency,
-      payment_options: "card, banktransfer, ussd",
-      customer: {
-        email: "user@example.com",  // ideally pull from AppContext user profile
-        name: "Patient",
-      },
-      callback: function (data) {
-        console.log("Payment successful!", data)
-        // TODO: call your backend to verify payment using data.transaction_id
-      },
-      onclose: function () {
-        console.log("Payment modal closed")
-      },
+      redirect_url: window.location.origin + "/verify-flutterwave",
+      payment_options: "card,banktransfer,ussd",
+      "customer[email]": order.email || "user@example.com",
+      "customer[name]": order.name || "Patient",
+      "customizations[title]": "Appointment Booking",
+      "customizations[description]": "Payment for your appointment",
+      "customizations[logo]": window.location.origin + "/logo.png",
+    }
 
-      try {
-
-        const {data} = await axios.post(backendUrl+'/api/user/verifyFlutterwave',Response,{headers:{token}})
-        if (data.success) {
-          getUserAppointments()
-          navigate('/my-appointments')
-        }
-
-      } catch (error) {
-        console.log(error)
-        toast.error(error.message)
-      }
-      customizations: {
-        title: "Appointment Booking",
-        description: "Payment for your appointment",
-        logo: "/logo.png",
-      },
-    })
+    const query = new URLSearchParams(paymentData).toString()
+    window.open(`https://checkout.flutterwave.com/v3/hosted/pay?${query}`, "_blank")
   }
 
-  // Calls backend to get order details, then opens Flutterwave checkout
+  // Calls backend to get order details, then opens Flutterwave in a new tab
   const appointmentFlutterwave = async (appointmentId) => {
     try {
       const { data } = await axios.post(
-        backendUrl + '/api/user/payment-flutterwave',  // ✅ fixed missing leading slash
+        backendUrl + '/api/user/payment-flutterwave',
         { appointmentId },
         { headers: { token } }
       )
@@ -141,15 +119,24 @@ const MyAppointments = () => {
             </div>
             <div></div>
             <div className='flex flex-col gap-2 justify-end'>
-              {!item.cancelled && item.payment &&<button className='sm:min-w-48 py-2 border rounded text-stone-500 bg-indigo-500'>Paid</button>}
-              {!item.cancelled && !item.payment &&
+
+              {/* Paid button - grey, shown when payment is confirmed */}
+              {!item.cancelled && item.payment && (
+                <button className='sm:min-w-48 py-2 border rounded text-stone-500 bg-stone-200 cursor-default'>
+                  Paid
+                </button>
+              )}
+
+              {/* Pay Online button - opens Flutterwave in new tab */}
+              {!item.cancelled && !item.payment && (
                 <button
                   onClick={() => appointmentFlutterwave(item._id)}
                   className='text-sm text-stone-500 text-center sm:min-w-48 py-2 border rounded hover:bg-primary hover:text-white transition-all duration-300'
                 >
                   Pay Online
                 </button>
-              }
+              )}
+
               {!item.cancelled && (
                 <button
                   onClick={() => cancelAppointment(item._id)}
@@ -158,11 +145,13 @@ const MyAppointments = () => {
                   Cancel Appointment
                 </button>
               )}
+
               {item.cancelled && (
                 <button className='sm:min-w-48 py-2 border border-red-500 rounded text-red-500'>
                   Appointment cancelled
                 </button>
               )}
+
             </div>
           </div>
         ))}

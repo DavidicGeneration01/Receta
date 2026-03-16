@@ -22,25 +22,18 @@ const registerUser = async (req, res) => {
             return res.json({ success: false, message: "Missing details" })
         }
 
-        // validating email format
         if (!validator.isEmail(email)) {
             return res.json({ success: false, message: "Enter a valid email" })
         }
 
-        // validating strong password
         if (password.length < 8) {
             return res.json({ success: false, message: "Enter a strong password" })
         }
 
-        // hashing user password
         const salt = await bcrypt.genSalt(10)
         const hashedPassword = await bcrypt.hash(password, salt)
 
-        const userData = {
-            name,
-            email,
-            password: hashedPassword
-        }
+        const userData = { name, email, password: hashedPassword }
 
         const newUser = new userModel(userData)
         const user = await newUser.save()
@@ -85,7 +78,6 @@ const getProfile = async (req, res) => {
     try {
         const { userId } = req.body
         const userData = await userModel.findById(userId).select('-password')
-
         res.json({ success: true, userData })
 
     } catch (error) {
@@ -104,10 +96,15 @@ const updateProfile = async (req, res) => {
             return res.json({ success: false, message: "Data Missing" })
         }
 
-        await userModel.findByIdAndUpdate(userId, { name, phone, address: JSON.parse(address), dob, gender })
+        await userModel.findByIdAndUpdate(userId, {
+            name,
+            phone,
+            address: JSON.parse(address),
+            dob,
+            gender
+        })
 
         if (imageFile) {
-            // upload image to cloudinary
             const imageUpload = await cloudinary.uploader.upload(imageFile.path, { resource_type: 'image' })
             const imageURL = imageUpload.secure_url
             await userModel.findByIdAndUpdate(userId, { image: imageURL })
@@ -148,13 +145,15 @@ const bookAppointment = async (req, res) => {
 
         const userData = await userModel.findById(userId).select('-password')
 
-        delete docData.slots_booked
+        // FIX: Convert to plain object before deleting a field
+        const docDataPlain = docData.toObject()
+        delete docDataPlain.slots_booked
 
         const appointmentData = {
             userId,
             docId,
             userData,
-            docData,
+            docData: docDataPlain,   // ← now image and all fields are preserved
             amount: docData.fees,
             slotTime,
             slotDate,
@@ -164,7 +163,6 @@ const bookAppointment = async (req, res) => {
         const newAppointment = new appointmentModel(appointmentData)
         await newAppointment.save()
 
-        // save new slots data in docData
         await doctorModel.findByIdAndUpdate(docId, { slots_booked })
 
         res.json({ success: true, message: 'Appointment Booked' })
@@ -180,7 +178,6 @@ const listAppointment = async (req, res) => {
     try {
         const { userId } = req.body
         const appointments = await appointmentModel.find({ userId })
-
         res.json({ success: true, appointments })
 
     } catch (error) {
@@ -196,20 +193,16 @@ const cancelAppointment = async (req, res) => {
 
         const appointmentData = await appointmentModel.findById(appointmentId)
 
-        // Verify appointment user
         if (appointmentData.userId !== userId) {
             return res.json({ success: false, message: 'Unauthorized action' })
         }
 
         await appointmentModel.findByIdAndUpdate(appointmentId, { cancelled: true })
 
-        // releasing doctor slot
         const { docId, slotDate, slotTime } = appointmentData
-
         const doctorData = await doctorModel.findById(docId)
 
         let slots_booked = doctorData.slots_booked
-
         slots_booked[slotDate] = slots_booked[slotDate].filter(e => e !== slotTime)
 
         await doctorModel.findByIdAndUpdate(docId, { slots_booked })
@@ -233,7 +226,6 @@ const paymentFlutterwave = async (req, res) => {
             return res.json({ success: false, message: "Appointment cancelled or not found" })
         }
 
-        // Build order object for the frontend Flutterwave checkout
         const order = {
             id: appointmentData._id.toString(),
             amount: appointmentData.amount,
@@ -249,25 +241,40 @@ const paymentFlutterwave = async (req, res) => {
     }
 }
 
-// API to verify payment of Flutterwave
-const verifyFlutterwave = async (req,res) => {
+// API to verify payment from Flutterwave redirect
+const verifyFlutterwave = async (req, res) => {
     try {
+        const { tx_ref, transaction_id } = req.body
 
-        const {flutterwave_order_id} = req.body
-        const orderInfo = await flutterInstance.orders.fetch(flutterwave_order_id)
-        
-        if (orderInfo.status === 'paid') {
-            await appointmentModel.findByIdAndUpdate(orderInfo.receipt,{payment:true})
-            res.json({success:true,message:"Payment Successful"})
-        } else {
-            res.json({success:false,message:"Payment failed"})
+        if (!transaction_id) {
+            return res.json({ success: false, message: "No transaction ID provided" })
         }
-        
+
+        // Verify the transaction with Flutterwave
+        const response = await flw.Transaction.verify({ id: transaction_id })
+
+        if (
+            response.data.status === "successful" &&
+            response.data.tx_ref === tx_ref
+        ) {
+            // Extract appointmentId from tx_ref: "txref-{appointmentId}-{timestamp}"
+            const parts = tx_ref.split('-')
+            // tx_ref format: txref-{appointmentId}-{Date.now()}
+            // appointmentId is between first and last dash segments
+            const appointmentId = parts.slice(1, parts.length - 1).join('-')
+
+            await appointmentModel.findByIdAndUpdate(appointmentId, { payment: true })
+
+            res.json({ success: true, message: "Payment Successful" })
+        } else {
+            res.json({ success: false, message: "Payment verification failed" })
+        }
+
     } catch (error) {
-        
+        console.log(error)
+        res.json({ success: false, message: error.message })
     }
 }
-
 
 export {
     registerUser,
@@ -277,5 +284,6 @@ export {
     bookAppointment,
     listAppointment,
     cancelAppointment,
-    paymentFlutterwave
+    paymentFlutterwave,
+    verifyFlutterwave    // ← was missing from exports!
 }
