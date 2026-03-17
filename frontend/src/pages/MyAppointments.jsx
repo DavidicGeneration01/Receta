@@ -21,12 +21,9 @@ const MyAppointments = () => {
   const getUserAppointments = async () => {
     try {
       const { data } = await axios.get(backendUrl + '/api/user/appointments', { headers: { token } })
-
       if (data.success) {
         setAppointments(data.appointments.reverse())
-        console.log(data.appointments)
       }
-
     } catch (error) {
       console.log(error)
       toast.error(error.message)
@@ -36,7 +33,6 @@ const MyAppointments = () => {
   const cancelAppointment = async (appointmentId) => {
     try {
       const { data } = await axios.post(backendUrl + '/api/user/cancel-appointment', { appointmentId }, { headers: { token } })
-
       if (data.success) {
         toast.success(data.message)
         getUserAppointments()
@@ -44,34 +40,57 @@ const MyAppointments = () => {
       } else {
         toast.error(data.message)
       }
-
     } catch (error) {
       console.log(error)
       toast.error(error.message)
     }
   }
 
-  // Opens Flutterwave hosted payment page in a new tab
-  const initPay = (order) => {
-    const paymentData = {
+  // Dynamically load Flutterwave inline script
+  const loadFlutterwaveScript = () => {
+    return new Promise((resolve) => {
+      if (document.getElementById('flutterwave-script')) {
+        resolve(true)
+        return
+      }
+      const script = document.createElement('script')
+      script.id = 'flutterwave-script'
+      script.src = 'https://checkout.flutterwave.com/v3.js'
+      script.onload = () => resolve(true)
+      script.onerror = () => resolve(false)
+      document.body.appendChild(script)
+    })
+  }
+
+  // Opens Flutterwave inline checkout modal
+  const initPay = async (order) => {
+    const scriptLoaded = await loadFlutterwaveScript()
+
+    if (!scriptLoaded) {
+      toast.error('Failed to load payment gateway. Please try again.')
+      return
+    }
+
+    window.FlutterwaveCheckout({
       public_key: import.meta.env.VITE_FLW_PUBLIC_KEY,
       tx_ref: "txref-" + order.receipt + "-" + Date.now(),
       amount: order.amount,
-      currency: order.currency,
+      currency: order.currency || 'NGN',
+      payment_options: "card, banktransfer, ussd",
       redirect_url: window.location.origin + "/verify-flutterwave",
-      payment_options: "card,banktransfer,ussd",
-      "customer[email]": order.email || "user@example.com",
-      "customer[name]": order.name || "Patient",
-      "customizations[title]": "Appointment Booking",
-      "customizations[description]": "Payment for your appointment",
-      "customizations[logo]": window.location.origin + "/logo.png",
-    }
-
-    const query = new URLSearchParams(paymentData).toString()
-    window.open(`https://checkout.flutterwave.com/v3/hosted/pay?${query}`, "_blank")
+      customer: {
+        email: "user@example.com",
+        name: "Patient",
+      },
+      customizations: {
+        title: "Appointment Booking",
+        description: "Payment for your appointment",
+        logo: window.location.origin + "/logo.png",
+      },
+    })
   }
 
-  // Calls backend to get order details, then opens Flutterwave in a new tab
+  // Calls backend to get order details, then opens Flutterwave
   const appointmentFlutterwave = async (appointmentId) => {
     try {
       const { data } = await axios.post(
@@ -79,13 +98,11 @@ const MyAppointments = () => {
         { appointmentId },
         { headers: { token } }
       )
-
       if (data.success) {
         initPay(data.order)
       } else {
         toast.error(data.message)
       }
-
     } catch (error) {
       console.log(error)
       toast.error(error.message)
@@ -127,7 +144,7 @@ const MyAppointments = () => {
                 </button>
               )}
 
-              {/* Pay Online button - opens Flutterwave in new tab */}
+              {/* Pay Online button */}
               {!item.cancelled && !item.payment && (
                 <button
                   onClick={() => appointmentFlutterwave(item._id)}
