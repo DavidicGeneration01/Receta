@@ -46,7 +46,10 @@ const Doctors = () => {
                     <img className='bg-blue-50' src={item.image} alt="" />
                     <div className='p-4'>
                         <div className='flex items-center gap-2 text-sm text-center text-green-500'>
-                            <p className='w-2 h-2 bg-green-500 rounded-full'></p><p>Available</p>
+                            {/* <p className={`w-2 h-2 rounded-full ${item.available ? 'bg-green-500' : 'bg-red-500'}`}></p><p>Available</p> */}
+                            <p className={`w-2 h-2 rounded-full animate-pulse ${item.available ? 'bg-green-500 shadow-green-400' : 'bg-red-500 shadow-red-400'}`}></p>
+  <p className={`px-2 py-0.5 rounded-full text-xs font-medium ${item.available ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+    {item.available ? 'Available' : 'Unavailable'}</p>
                         </div>        
                         <p className='text-gray-900 text-lg font-medium'>{item.name}</p>
                         <p className='text-gray-600 text-sm'>{item.speciality}</p>
