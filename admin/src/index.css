@@ -10,7 +10,6 @@
 }
 
 * {
- @apply border-gray-300;
- font-family: Outfit;
+  @apply border-gray-300;
+  font-family: Outfit;
 }
-
