@@ -9,7 +9,7 @@ const Login = () => {
   const { backendUrl, token, setToken } = useContext(AppContext)
   const navigate = useNavigate()
 
-  const [state, setState] = useState('Sign Up') // ✅ Changed to 'Sign Up'
+  const [state, setState] = useState('Sign Up') 
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
