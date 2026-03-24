@@ -71,13 +71,13 @@ const MyProfile = () => {
         <p className='text-neutral-500 underline mt-3'>CONTACT INFORMATION</p>
         <div className='grid grid-cols-[1fr_3fr] gap-y-2.5 mt-3 text-neutral-700'>
           <p className='font-medium'>Email id:</p>
-          <p className='text-blue-500'>{userData.email}</p>
+          <p className='text-teal-500'>{userData.email}</p>
           
           <p className='font-medium'>Phone:</p>
           {isEdit ? (
             <input className='bg-gray-100 max-w-52' type='text' value={userData.phone} onChange={e => setUserData(prev => ({ ...prev, phone: e.target.value }))} />
           ) : (
-            <p className='text-blue-400'>{userData.phone}</p>
+            <p className='text-teal-400'>{userData.phone}</p>
           )}
 
           <p className='font-medium'>Address:</p>
