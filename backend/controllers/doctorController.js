@@ -2,6 +2,8 @@ import doctorModel from "../models/doctorModel.js"
 import bcrypt from 'bcrypt'
 import jwt from 'jsonwebtoken'
 import appointmentModel from "../models/appointmentModel.js"
+import userModel from "../models/userModel.js"
+import patientMedicalRecordModel from "../models/patientMedicalRecordModel.js"
 
 const changeAvailability = async (req, res) => {
     try {
@@ -198,13 +200,122 @@ const updateDoctorProfile = async (req, res) => {
 }
 
 
+// API to get doctor's patients list
+const getDoctorPatients = async (req, res) => {
+    try {
+        const { docId } = req.body
+
+        // Get all appointments for this doctor
+        const appointments = await appointmentModel.find({ docId }).populate('userId', 'name email phone image')
+
+        // Get unique patients (avoid duplicates)
+        const patientsMap = new Map()
+
+        for (const appointment of appointments) {
+            if (appointment.userId && !patientsMap.has(appointment.userId._id.toString())) {
+                patientsMap.set(appointment.userId._id.toString(), {
+                    ...appointment.userId.toObject(),
+                    lastAppointment: appointment.slotDate,
+                    appointmentId: appointment._id
+                })
+            }
+        }
+
+        const patients = Array.from(patientsMap.values())
+
+        res.json({ success: true, patients })
+
+    } catch (error) {
+        console.log(error)
+        res.json({ success: false, message: error.message })
+    }
+}
+
+// API to add diagnosis for a patient
+const addDiagnosis = async (req, res) => {
+    try {
+        const { docId, userId, diagnosis, prescription, notes } = req.body
+
+        if (!userId || !diagnosis) {
+            return res.json({ success: false, message: "Patient ID and diagnosis are required" })
+        }
+
+        // Get doctor info for medical record
+        const doctor = await doctorModel.findById(docId).select('name speciality')
+
+        if (!doctor) {
+            return res.json({ success: false, message: "Doctor not found" })
+        }
+
+        // Get patient info
+        const patient = await userModel.findById(userId)
+
+        if (!patient) {
+            return res.json({ success: false, message: "Patient not found" })
+        }
+
+        // Create or update medical record
+        let medicalRecord = await patientMedicalRecordModel.findOne({ userId })
+
+        if (!medicalRecord) {
+            medicalRecord = new patientMedicalRecordModel({ userId })
+        }
+
+        // Add consultation to history
+        const consultationEntry = {
+            appointmentId: null,
+            doctorId: docId,
+            doctorName: doctor.name,
+            speciality: doctor.speciality,
+            consultationDate: new Date(),
+            diagnosis: diagnosis,
+            prescription: prescription || [],
+            notes: notes || ""
+        }
+
+        medicalRecord.consultationHistory.push(consultationEntry)
+        medicalRecord.lastUpdated = Date.now()
+
+        await medicalRecord.save()
+
+        res.json({ success: true, message: "Diagnosis added successfully", medicalRecord })
+
+    } catch (error) {
+        console.log(error)
+        res.json({ success: false, message: error.message })
+    }
+}
+
+// API to get patient medical record (doctor view)
+const getPatientMedicalRecord = async (req, res) => {
+    try {
+        const { userId } = req.body
+
+        const medicalRecord = await patientMedicalRecordModel.findOne({ userId })
+
+        if (!medicalRecord) {
+            return res.json({ success: true, medicalRecord: { userId, consultationHistory: [], medicalHistory: [], labHistory: [], allergies: [] } })
+        }
+
+        res.json({ success: true, medicalRecord })
+
+    } catch (error) {
+        console.log(error)
+        res.json({ success: false, message: error.message })
+    }
+}
+
+
 export {
-     changeAvailability, 
-     doctorList, loginDoctor, 
-     appointmentsDoctor, 
-     appointmentCancel, 
-     appointmentComplete, 
+     changeAvailability,
+     doctorList, loginDoctor,
+     appointmentsDoctor,
+     appointmentCancel,
+     appointmentComplete,
      doctorDashboard,
      doctorProfile,
-     updateDoctorProfile
+     updateDoctorProfile,
+     getDoctorPatients,
+     addDiagnosis,
+     getPatientMedicalRecord
 }

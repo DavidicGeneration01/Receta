@@ -28,6 +28,14 @@ const Navbar = () => {
                 <li className='py-1'>ALL DOCTORS</li>
                 <hr className='border-none outline-none h-0.5  bg-primary w-3/5 m-auto hidden' />
             </NavLink>
+            <NavLink to='/labs'>
+                <li className='py-1'>LABS</li>
+                <hr className='border-none outline-none h-0.5  bg-primary w-3/5 m-auto hidden' />
+            </NavLink>
+            <NavLink to='/pharmacies'>
+                <li className='py-1'>PHARMACIES</li>
+                <hr className='border-none outline-none h-0.5  bg-primary w-3/5 m-auto hidden' />
+            </NavLink>
             <NavLink to='/about'>
                 <li className='py-1'>ABOUT</li>
                 <hr className='border-none outline-none h-0.5  bg-primary w-3/5 m-auto hidden' />
@@ -36,6 +44,7 @@ const Navbar = () => {
                 <li className='py-1'>CONTACT</li>
                 <hr className='border-none outline-none h-0.5  bg-primary w-3/5 m-auto hidden' />
             </NavLink>
+            
         </ul>
         <div className='flex items-center gap-4'>
             {
@@ -47,6 +56,10 @@ const Navbar = () => {
                         <div className='min-w-48 bg-stone-100 rounded flex flex-col gap-4 p-4'>
                             <p onClick={()=>navigate('/my-profile')} className='hover:text-black cursor-pointer'>My Profile</p>
                             <p onClick={()=>navigate('/my-appointments')} className='hover:text-black cursor-pointer'>My Appointments</p>
+                            <p onClick={()=>navigate('/my-lab-bookings')} className='hover:text-black cursor-pointer'>Lab Bookings</p>
+                            <p onClick={()=>navigate('/my-messages')} className='hover:text-black cursor-pointer'>Messages</p>
+                            <p onClick={()=>navigate('/medical-history')} className='hover:text-black cursor-pointer'>Medical History</p>
+                            <p onClick={()=>navigate('/doctor-dashboard')} className='hover:text-black cursor-pointer'>Doctor Dashboard</p>
                             <p onClick={logout} className='hover:text-black cursor-pointer'>Logout</p>
                         </div>
                     </div>
@@ -63,6 +76,8 @@ const Navbar = () => {
                 <ul className='flex flex-col items-center gap-2 mt-5 mt-5 px-5 text-lg font-medium'>
                     <NavLink className='px-4 py-2 rounded inline-block' onClick={()=>setShowMenu(false)} to='/'><p className='px-4 py-2 rounded inline-block'>HOME</p></NavLink>
                     <NavLink className='px-4 py-2 rounded inline-block' onClick={()=>setShowMenu(false)} to='/doctors'><p className='px-4 py-2 rounded inline-block'>ALL DOCTORS</p></NavLink>
+                    <NavLink className='px-4 py-2 rounded inline-block' onClick={()=>setShowMenu(false)} to='/labs'><p className='px-4 py-2 rounded inline-block'>LABS</p></NavLink>
+                    <NavLink className='px-4 py-2 rounded inline-block' onClick={()=>setShowMenu(false)} to='/pharmacies'><p className='px-4 py-2 rounded inline-block'>PHARMACIES</p></NavLink>
                     <NavLink className='px-4 py-2 rounded inline-block' onClick={()=>setShowMenu(false)} to='/about'><p className='px-4 py-2 rounded inline-block'>ABOUT</p></NavLink>
                     <NavLink className='px-4 py-2 rounded inline-block' onClick={()=>setShowMenu(false)} to='/contact'><p className='px-4 py-2 rounded inline-block'>CONTACT</p></NavLink>
                 </ul>

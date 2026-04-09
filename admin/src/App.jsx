@@ -13,6 +13,10 @@ import { DoctorContext } from './context/DoctorContext';
 import DoctorDashboard from './pages/Doctor/DoctorDashboard';
 import DoctorAppointments from './pages/Doctor/DoctorAppointments';
 import DoctorProfile from './pages/Doctor/DoctorProfile';
+import DoctorPatientRecord from "./pages/Doctor/DoctorPatientRecord";
+import DoctorMessages from "./pages/Doctor/DoctorMessages";
+import LabManagement from "./pages/Admin/LabManagement";
+
 
 const App = () => {
   
@@ -26,18 +30,20 @@ const App = () => {
       <div className='flex items-start'>
         <Sidebar />
         <Routes>
-          {/* Admin Route */}
+          {/* Admin Routes */}
           <Route path='/' element={<></>} />
           <Route path='/admin-dashboard' element={<Dashboard />} />
           <Route path='/all-appointments' element={<AllAppointments />} />
           <Route path='/add-doctor' element={<AddDoctor />} />
           <Route path='/doctor-list' element={<DoctorsList />} />
+          <Route path='/lab-management' element={<LabManagement />} />
 
-          {/* Doctor Route */}
+          {/* Doctor Routes */}
           <Route path='/doctor-dashboard' element={<DoctorDashboard />} />
           <Route path='/doctor-appointments' element={<DoctorAppointments />} />
           <Route path='/doctor-profile' element={<DoctorProfile />} />
-          
+          <Route path='/doctor-messages' element={<DoctorMessages />} />
+          <Route path='/doctor-patient-record/:patientId' element={<DoctorPatientRecord />} />
         </Routes>
       </div>
 

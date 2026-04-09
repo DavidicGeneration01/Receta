@@ -1,11 +1,16 @@
-import express from 'express'
-import cors from 'cors'
-import 'dotenv/config'
-import connectDB from './config/mongodb.js'
-import connectCloudinary from './config/cloudinary.js'
-import adminRouter from './routes/adminRoute.js'
-import doctorRouter from './routes/doctorRoute.js'
-import userRouter from './routes/userRoute.js'
+import express from 'express';
+import cors from 'cors';
+import 'dotenv/config';
+import connectDB from './config/mongodb.js';
+import connectCloudinary from './config/cloudinary.js';
+import adminRouter from './routes/adminRoute.js';
+import doctorRouter from './routes/doctorRoute.js';
+import userRouter from './routes/userRoute.js';
+import labRouter from './routes/labRoute.js';
+import pharmacyRouter from './routes/pharmacyRoute.js';
+import messageRouter from './routes/messageRoute.js';
+import medicalRecordRouter from './routes/medicalRecordRoute.js';
+
 
 
 
@@ -24,6 +29,10 @@ app.use(cors())
 app.use('/api/admin',adminRouter)
 app.use('/api/doctor',doctorRouter)
 app.use('/api/user',userRouter)
+app.use('/api/lab',labRouter)
+app.use('/api/pharmacy',pharmacyRouter)
+app.use('/api/message',messageRouter)
+app.use('/api/medical-record',medicalRecordRouter)
 // localhost:4000/api/admin/add-doctor
 
 app.get('/', (req, res) => {

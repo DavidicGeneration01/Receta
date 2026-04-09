@@ -8,11 +8,20 @@ import Contact from './pages/Contact'
 import MyProfile from './pages/MyProfile'
 import MyAppointments from './pages/MyAppointments'
 import Appointment from './pages/Appointment'
-import VerifyFlutterwave from './pages/VerifyFlutterwave'  // ✅ ADD THIS
+import VerifyFlutterwave from './pages/VerifyFlutterwave'
+import Labs from './pages/Labs'
+import LabBooking from './pages/LabBooking'
+import MyLabBookings from './pages/MyLabBookings'
+import Pharmacies from './pages/Pharmacies'
+import Pharmacy from './pages/Pharmacy'
+import DoctorDashboard from './pages/DoctorDashboard'
+import MyMessages from './pages/MyMessages'
+import MedicalHistory from './pages/MedicalHistory'
 import Navbar from './components/Navbar'
 import Footer from './components/Footer'
 import AppContextProvider from './context/AppContext'
 import { ToastContainer } from 'react-toastify'
+
 
 const App = () => {
   return (
@@ -30,7 +39,15 @@ const App = () => {
           <Route path='/my-profile' element={<MyProfile />} />
           <Route path='/my-appointments' element={<MyAppointments />} />
           <Route path='/appointment/:docId' element={<Appointment />} />
-          <Route path='/verify-flutterwave' element={<VerifyFlutterwave />} />  {/* ✅ ADD THIS */}
+          <Route path="/doctor-dashboard" element={<DoctorDashboard />} />
+          <Route path='/verify-flutterwave' element={<VerifyFlutterwave />} />
+          <Route path='/labs' element={<Labs />} />
+          <Route path='/lab-booking' element={<LabBooking />} />
+          <Route path='/my-lab-bookings' element={<MyLabBookings />} />
+          <Route path='/pharmacies' element={<Pharmacies />} />
+          <Route path='/pharmacy/:pharmacyId' element={<Pharmacy />} />
+          <Route path='/my-messages' element={<MyMessages />} />
+          <Route path='/medical-history' element={<MedicalHistory />} />
         </Routes>
         <Footer />
       </div>
