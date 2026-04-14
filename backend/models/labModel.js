@@ -1,8 +1,8 @@
 import mongoose from "mongoose";
 
 const labSchema = new mongoose.Schema({
-  name: { type: String, required: true }, // "Syn Lab" | "Lancet Lab"
-  slug: { type: String, required: true, unique: true },
+  name: { type: String, required: true },
+  slug: { type: String, unique: true, sparse: true }, // removed required, added sparse
   description: { type: String },
   address: { type: String },
   location: {
@@ -13,7 +13,7 @@ const labSchema = new mongoose.Schema({
   phone: { type: String },
   email: { type: String },
   logo: { type: String },
-  googleFormUrl: { type: String }, // Google Form URL for bookings
+  googleFormUrl: { type: String },
   operatingHours: { type: String },
   isActive: { type: Boolean, default: true },
 }, { timestamps: true });

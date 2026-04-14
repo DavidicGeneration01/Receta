@@ -13,6 +13,11 @@ const CATEGORY_COLORS = {
   Imaging: "bg-orange-100 text-orange-700",
 };
 
+const FALLBACK_IMAGES = [
+  "https://res.cloudinary.com/dg12bmvxm/image/upload/SYNLAB-Nigeria_djpa9b",
+  "https://res.cloudinary.com/dg12bmvxm/image/upload/Lancet-Laboratories-300x160_enxlwv",
+];
+
 const Labs = () => {
   const navigate = useNavigate();
   const { backendUrl, token } = useContext(AppContext);
@@ -105,7 +110,7 @@ const Labs = () => {
         {/* Lab Selection Cards */}
         <h2 className="text-xl font-semibold text-gray-700 mb-4">Select a Laboratory</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
-          {labs.map((lab) => (
+          {labs.map((lab, idx) => (
             <div
               key={lab._id}
               onClick={() => handleSelectLab(lab)}
@@ -115,11 +120,11 @@ const Labs = () => {
                   : "border-gray-200 bg-white"
               }`}
             >
-              {lab.logo ? (
-                <img src={lab.logo} alt={lab.name} className="w-14 h-14 rounded-lg object-contain" />
-              ) : (
-                <div className="w-14 h-14 rounded-lg bg-teal-100 flex items-center justify-center text-2xl">🧪</div>
-              )}
+              <img
+                src={lab.logo || FALLBACK_IMAGES[idx % FALLBACK_IMAGES.length]}
+                alt={lab.name}
+                className="w-14 h-14 rounded-lg object-contain"
+              />
               <div>
                 <h3 className="font-bold text-gray-800 text-lg">{lab.name}</h3>
                 <p className="text-sm text-gray-500">{lab.address}</p>

@@ -8,7 +8,7 @@ import patientMedicalRecordModel from "../models/patientMedicalRecordModel.js";
 // Get all active labs (Syn Lab + Lancet Lab)
 export const getLabs = async (req, res) => {
   try {
-    const labs = await labModel.find({ isActive: true });
+    const labs = await labModel.find({ isActive: { $ne: false } });
     res.json({ success: true, labs });
   } catch (error) {
     res.json({ success: false, message: error.message });
