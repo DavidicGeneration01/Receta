@@ -36,7 +36,44 @@ const Labs = () => {
   const fetchLabs = async () => {
     try {
       const { data } = await axios.get(`${backendUrl}/api/lab/list`);
-      if (data.success) setLabs(data.labs);
+        if (data.success) {
+          const raw = data.labs || [];
+
+          // Group labs by name (case-insensitive)
+          const groups = raw.reduce((acc, lab) => {
+            const name = (lab.name || "").toLowerCase().trim();
+            if (!acc[name]) acc[name] = [];
+            acc[name].push(lab);
+            return acc;
+          }, {});
+
+          // For each group prefer the entry that has an address, then one with time details, then one with a logo.
+          const preferred = Object.values(groups).map((group) => {
+            group.sort((a, b) => {
+              const aHasAddress = a.address && String(a.address).trim() !== "" ? 1 : 0;
+              const bHasAddress = b.address && String(b.address).trim() !== "" ? 1 : 0;
+              if (bHasAddress - aHasAddress) return bHasAddress - aHasAddress;
+
+              const aHoursHasDigit = /\d/.test(a.operatingHours || "") ? 1 : 0;
+              const bHoursHasDigit = /\d/.test(b.operatingHours || "") ? 1 : 0;
+              if (bHoursHasDigit - aHoursHasDigit) return bHoursHasDigit - aHoursHasDigit;
+
+              const aHasLogo = a.logo ? 1 : 0;
+              const bHasLogo = b.logo ? 1 : 0;
+              return bHasLogo - aHasLogo;
+            });
+            return group[0];
+          });
+
+          // Remove any remaining entries that have neither address nor operating hours
+          const finalList = preferred.filter((lab) => {
+            const hasAddress = lab.address && String(lab.address).trim() !== "";
+            const hasHours = lab.operatingHours && String(lab.operatingHours).trim() !== "";
+            return hasAddress || hasHours;
+          });
+
+          setLabs(finalList);
+        }
     } catch {
       toast.error("Failed to load labs");
     }
