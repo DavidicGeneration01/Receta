@@ -18,5 +18,7 @@ const labSchema = new mongoose.Schema({
   isActive: { type: Boolean, default: true },
 }, { timestamps: true });
 
+labSchema.index({ isActive: 1, name: 1 });
+
 const labModel = mongoose.models.lab || mongoose.model("lab", labSchema);
 export default labModel;

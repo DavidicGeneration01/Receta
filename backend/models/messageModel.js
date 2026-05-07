@@ -9,5 +9,8 @@ const messageSchema = new mongoose.Schema({
   isRead: { type: Boolean, default: false },
 }, { timestamps: true });
 
+messageSchema.index({ conversationId: 1, createdAt: 1 });
+messageSchema.index({ conversationId: 1, senderRole: 1, isRead: 1 });
+
 const messageModel = mongoose.models.message || mongoose.model("message", messageSchema);
 export default messageModel;

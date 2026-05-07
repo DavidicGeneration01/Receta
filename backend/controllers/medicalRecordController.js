@@ -9,7 +9,8 @@ export const getPatientRecord = async (req, res) => {
     let record = await patientMedicalRecordModel
       .findOne({ userId: patientId })
       .populate("consultationHistory.doctorId", "name speciality image")
-      .populate("laboratoryHistory.labBookingId");
+      .populate("laboratoryHistory.labBookingId")
+      .lean();
 
     if (!record) {
       record = { consultationHistory: [], medicalHistory: {}, laboratoryHistory: [] };
@@ -103,7 +104,8 @@ export const getMyMedicalHistory = async (req, res) => {
     const record = await patientMedicalRecordModel
       .findOne({ userId })
       .populate("consultationHistory.doctorId", "name speciality image")
-      .populate("laboratoryHistory.labBookingId");
+      .populate("laboratoryHistory.labBookingId")
+      .lean();
 
     res.json({ success: true, record: record || null });
   } catch (error) {
@@ -121,7 +123,8 @@ export const adminGetPatientRecord = async (req, res) => {
       .findOne({ userId: patientId })
       .populate("consultationHistory.doctorId", "name speciality image")
       .populate("laboratoryHistory.labBookingId")
-      .populate("userId", "name email phone image");
+      .populate("userId", "name email phone image")
+      .lean();
 
     res.json({ success: true, record: record || null });
   } catch (error) {

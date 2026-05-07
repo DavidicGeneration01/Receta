@@ -2,7 +2,7 @@ import pharmacyModel from "../models/pharmacyModel.js";
 
 export const getPharmacies = async (req, res) => {
   try {
-    const pharmacies = await pharmacyModel.find({ isActive: true });
+    const pharmacies = await pharmacyModel.find({ isActive: true }).sort({ name: 1 }).lean();
     res.json({ success: true, pharmacies });
   } catch (error) {
     res.json({ success: false, message: error.message });

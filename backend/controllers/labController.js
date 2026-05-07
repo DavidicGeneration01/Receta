@@ -2,13 +2,14 @@ import labModel from "../models/labModel.js";
 import labTestModel from "../models/labTestModel.js";
 import labBookingModel from "../models/labBookingModel.js";
 import patientMedicalRecordModel from "../models/patientMedicalRecordModel.js";
+import { getPagination } from "../utils/queryOptions.js";
 
 // ─── PUBLIC ──────────────────────────────────────────────────────────────────
 
 // Get all active labs (Syn Lab + Lancet Lab)
 export const getLabs = async (req, res) => {
   try {
-    const labs = await labModel.find({ isActive: { $ne: false } });
+    const labs = await labModel.find({ isActive: { $ne: false } }).sort({ name: 1 }).lean();
     res.json({ success: true, labs });
   } catch (error) {
     res.json({ success: false, message: error.message });
@@ -19,7 +20,7 @@ export const getLabs = async (req, res) => {
 export const getLabTests = async (req, res) => {
   try {
     const { labId } = req.params;
-    const tests = await labTestModel.find({ labId, isActive: true }).sort({ category: 1, testName: 1 });
+    const tests = await labTestModel.find({ labId, isActive: true }).sort({ category: 1, testName: 1 }).lean();
     res.json({ success: true, tests });
   } catch (error) {
     res.json({ success: false, message: error.message });
@@ -34,10 +35,10 @@ export const bookLabTests = async (req, res) => {
     const { userId } = req.body;
     const { labId, testIds, doctorId, appointmentId, notes } = req.body;
 
-    const lab = await labModel.findById(labId);
+    const lab = await labModel.findById(labId).select('name googleFormUrl').lean();
     if (!lab) return res.json({ success: false, message: "Lab not found" });
 
-    const tests = await labTestModel.find({ _id: { $in: testIds }, isActive: true });
+    const tests = await labTestModel.find({ _id: { $in: testIds }, isActive: true }).select('testName price').lean();
     if (!tests.length) return res.json({ success: false, message: "No valid tests selected" });
 
     const testItems = tests.map((t) => ({
@@ -85,12 +86,19 @@ export const bookLabTests = async (req, res) => {
 export const getMyLabBookings = async (req, res) => {
   try {
     const { userId } = req.body;
-    const bookings = await labBookingModel
-      .find({ userId })
-      .populate("labId", "name logo address")
-      .populate("doctorId", "name speciality image")
-      .sort({ createdAt: -1 });
-    res.json({ success: true, bookings });
+    const { limit, skip, page } = getPagination(req.query);
+    const [bookings, total] = await Promise.all([
+      labBookingModel
+        .find({ userId })
+        .populate("labId", "name logo address")
+        .populate("doctorId", "name speciality image")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      labBookingModel.countDocuments({ userId }),
+    ]);
+    res.json({ success: true, bookings, pagination: { page, limit, total } });
   } catch (error) {
     res.json({ success: false, message: error.message });
   }
@@ -101,12 +109,13 @@ export const markFormSubmitted = async (req, res) => {
   try {
     const { bookingId } = req.params;
     const { userId } = req.body;
-    const booking = await labBookingModel.findOne({ _id: bookingId, userId });
+    const booking = await labBookingModel.findOne({ _id: bookingId, userId }).select('_id').lean();
     if (!booking) return res.json({ success: false, message: "Booking not found" });
 
-    booking.formSubmitted = true;
-    booking.formSubmittedAt = new Date();
-    await booking.save();
+    await labBookingModel.updateOne(
+      { _id: bookingId, userId },
+      { $set: { formSubmitted: true, formSubmittedAt: new Date() } }
+    );
     res.json({ success: true, message: "Form submission recorded" });
   } catch (error) {
     res.json({ success: false, message: error.message });
@@ -121,7 +130,8 @@ export const getPatientLabHistory = async (req, res) => {
     const { patientId } = req.params;
     const record = await patientMedicalRecordModel
       .findOne({ userId: patientId })
-      .populate("laboratoryHistory.labBookingId");
+      .populate("laboratoryHistory.labBookingId")
+      .lean();
     res.json({ success: true, labHistory: record?.laboratoryHistory || [] });
   } catch (error) {
     res.json({ success: false, message: error.message });
@@ -208,13 +218,20 @@ export const upsertLab = async (req, res) => {
 // Admin: get all bookings
 export const getAllBookings = async (req, res) => {
   try {
-    const bookings = await labBookingModel
-      .find({})
-      .populate("userId", "name email phone")
-      .populate("labId", "name")
-      .populate("doctorId", "name speciality")
-      .sort({ createdAt: -1 });
-    res.json({ success: true, bookings });
+    const { limit, skip, page } = getPagination(req.query);
+    const [bookings, total] = await Promise.all([
+      labBookingModel
+        .find({})
+        .populate("userId", "name email phone")
+        .populate("labId", "name")
+        .populate("doctorId", "name speciality")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      labBookingModel.countDocuments({}),
+    ]);
+    res.json({ success: true, bookings, pagination: { page, limit, total } });
   } catch (error) {
     res.json({ success: false, message: error.message });
   }

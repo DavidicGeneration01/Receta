@@ -59,7 +59,23 @@ const seed = async () => {
         console.log(`${entry.name} already exists, skipping.`);
         continue;
       }
-      await new pharmacyModel(entry).save();
+
+      // Cleanse empty-string fields that may collide with unique indexes (e.g. email)
+      const doc = { ...entry };
+      if (doc.email === "" || doc.email === null || doc.email === undefined) {
+        // set a unique placeholder email to avoid unique-null index collisions
+        doc.email = `seed-${entry.name.replace(/\s+/g, '_')}-${Date.now()}@local.invalid`;
+      }
+      if (doc.phone === "" || doc.phone === null || doc.phone === undefined) {
+        doc.phone = undefined;
+      }
+      if (doc.logo === "" ) delete doc.logo;
+
+      // Always set a unique licenseNumber to avoid duplicate-null unique-index errors
+      doc.licenseNumber = `seed-${entry.name.replace(/\s+/g, '_')}-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+      console.log('Inserting doc:', { name: doc.name, licenseNumber: doc.licenseNumber });
+
+      await new pharmacyModel(doc).save();
       console.log(`Inserted ${entry.name}`);
     }
     process.exit(0);

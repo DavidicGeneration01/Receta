@@ -17,6 +17,11 @@ const appointmentSchema = new mongoose.Schema({
     // amount is defined above
 }, { timestamps: true })
 
+appointmentSchema.index({ userId: 1, date: -1 });
+appointmentSchema.index({ docId: 1, date: -1 });
+appointmentSchema.index({ docId: 1, userId: 1, date: -1 });
+appointmentSchema.index({ cancelled: 1, isCompleted: 1, payment: 1 });
+
 const appointmentModel = mongoose.models.appointment || mongoose.model('appointment',appointmentSchema);
 
 export default appointmentModel;

@@ -50,6 +50,11 @@ const labBookingSchema = new mongoose.Schema({
   notes: { type: String },
 }, { timestamps: true });
 
+labBookingSchema.index({ userId: 1, createdAt: -1 });
+labBookingSchema.index({ labId: 1, createdAt: -1 });
+labBookingSchema.index({ doctorId: 1, createdAt: -1 });
+labBookingSchema.index({ status: 1, createdAt: -1 });
+
 // Auto-calculate billing before save
 labBookingSchema.pre("save", function (next) {
   if (this.tests && this.tests.length > 0) {

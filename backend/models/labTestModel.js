@@ -14,5 +14,7 @@ const labTestSchema = new mongoose.Schema({
   lastUpdatedBy: { type: String }, // lab admin identifier
 }, { timestamps: true });
 
+labTestSchema.index({ labId: 1, isActive: 1, category: 1, testName: 1 });
+
 const labTestModel = mongoose.models.labTest || mongoose.model("labTest", labTestSchema);
 export default labTestModel;

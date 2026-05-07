@@ -1,6 +1,7 @@
 import conversationModel from "../models/conversationModel.js";
 import messageModel from "../models/messageModel.js";
 import appointmentModel from "../models/appointmentModel.js";
+import { getPagination } from "../utils/queryOptions.js";
 
 // ─── SHARED ───────────────────────────────────────────────────────────────────
 
@@ -8,8 +9,12 @@ import appointmentModel from "../models/appointmentModel.js";
 export const getMessages = async (req, res) => {
   try {
     const { conversationId } = req.params;
-    const messages = await messageModel.find({ conversationId }).sort({ createdAt: 1 });
-    res.json({ success: true, messages });
+    const { limit, skip, page } = getPagination(req.query);
+    const [messages, total] = await Promise.all([
+      messageModel.find({ conversationId }).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+      messageModel.countDocuments({ conversationId }),
+    ]);
+    res.json({ success: true, messages: messages.reverse(), pagination: { page, limit, total } });
   } catch (error) {
     res.json({ success: false, message: error.message });
   }
@@ -25,7 +30,8 @@ export const getUserConversations = async (req, res) => {
       .find({ userId, isActive: true })
       .populate("doctorId", "name speciality image")
       .populate("appointmentId", "slotDate slotTime")
-      .sort({ lastMessageAt: -1 });
+      .sort({ lastMessageAt: -1 })
+      .lean();
     res.json({ success: true, conversations });
   } catch (error) {
     res.json({ success: false, message: error.message });
@@ -39,7 +45,7 @@ export const userSendMessage = async (req, res) => {
     const { conversationId, text, attachmentUrl } = req.body;
 
     // Verify conversation belongs to user
-    const conversation = await conversationModel.findOne({ _id: conversationId, userId });
+    const conversation = await conversationModel.findOne({ _id: conversationId, userId }).select('_id').lean();
     if (!conversation) return res.json({ success: false, message: "Conversation not found" });
 
     const msg = new messageModel({
@@ -51,11 +57,10 @@ export const userSendMessage = async (req, res) => {
     });
     await msg.save();
 
-    // Update conversation
-    conversation.lastMessage = text || "📎 Attachment";
-    conversation.lastMessageAt = new Date();
-    conversation.doctorUnread += 1;
-    await conversation.save();
+    await conversationModel.updateOne(
+      { _id: conversationId, userId },
+      { $set: { lastMessage: text || "Attachment", lastMessageAt: new Date() }, $inc: { doctorUnread: 1 } }
+    );
 
     res.json({ success: true, message: msg });
   } catch (error) {
@@ -74,17 +79,17 @@ export const startConversation = async (req, res) => {
       _id: appointmentId,
       userId,
       docId: doctorId,
-    });
+    }).select('_id').lean();
     if (!appointment) {
       return res.json({ success: false, message: "No appointment found with this doctor" });
     }
 
     // Check if conversation already exists
-    let conversation = await conversationModel.findOne({ userId, doctorId, appointmentId });
-    if (!conversation) {
-      conversation = new conversationModel({ userId, doctorId, appointmentId });
-      await conversation.save();
-    }
+    const conversation = await conversationModel.findOneAndUpdate(
+      { userId, doctorId, appointmentId },
+      { $setOnInsert: { userId, doctorId, appointmentId } },
+      { upsert: true, new: true }
+    ).lean();
 
     res.json({ success: true, conversation });
   } catch (error) {
@@ -97,15 +102,14 @@ export const markUserMessagesRead = async (req, res) => {
   try {
     const { userId } = req.body;
     const { conversationId } = req.params;
-    const conversation = await conversationModel.findOne({ _id: conversationId, userId });
+    const conversation = await conversationModel.findOne({ _id: conversationId, userId }).select('_id').lean();
     if (!conversation) return res.json({ success: false, message: "Not found" });
 
     await messageModel.updateMany(
       { conversationId, senderRole: "doctor", isRead: false },
       { $set: { isRead: true } }
     );
-    conversation.userUnread = 0;
-    await conversation.save();
+    await conversationModel.updateOne({ _id: conversationId, userId }, { $set: { userUnread: 0 } });
     res.json({ success: true });
   } catch (error) {
     res.json({ success: false, message: error.message });
@@ -122,7 +126,8 @@ export const getDoctorConversations = async (req, res) => {
       .find({ doctorId: docId, isActive: true })
       .populate("userId", "name image email")
       .populate("appointmentId", "slotDate slotTime")
-      .sort({ lastMessageAt: -1 });
+      .sort({ lastMessageAt: -1 })
+      .lean();
     res.json({ success: true, conversations });
   } catch (error) {
     res.json({ success: false, message: error.message });
@@ -135,7 +140,7 @@ export const doctorSendMessage = async (req, res) => {
     const { docId } = req.body;
     const { conversationId, text, attachmentUrl } = req.body;
 
-    const conversation = await conversationModel.findOne({ _id: conversationId, doctorId: docId });
+    const conversation = await conversationModel.findOne({ _id: conversationId, doctorId: docId }).select('_id').lean();
     if (!conversation) return res.json({ success: false, message: "Conversation not found" });
 
     const msg = new messageModel({
@@ -147,10 +152,10 @@ export const doctorSendMessage = async (req, res) => {
     });
     await msg.save();
 
-    conversation.lastMessage = text || "📎 Attachment";
-    conversation.lastMessageAt = new Date();
-    conversation.userUnread += 1;
-    await conversation.save();
+    await conversationModel.updateOne(
+      { _id: conversationId, doctorId: docId },
+      { $set: { lastMessage: text || "Attachment", lastMessageAt: new Date() }, $inc: { userUnread: 1 } }
+    );
 
     res.json({ success: true, message: msg });
   } catch (error) {
@@ -163,15 +168,14 @@ export const markDoctorMessagesRead = async (req, res) => {
   try {
     const { docId } = req.body;
     const { conversationId } = req.params;
-    const conversation = await conversationModel.findOne({ _id: conversationId, doctorId: docId });
+    const conversation = await conversationModel.findOne({ _id: conversationId, doctorId: docId }).select('_id').lean();
     if (!conversation) return res.json({ success: false, message: "Not found" });
 
     await messageModel.updateMany(
       { conversationId, senderRole: "user", isRead: false },
       { $set: { isRead: true } }
     );
-    conversation.doctorUnread = 0;
-    await conversation.save();
+    await conversationModel.updateOne({ _id: conversationId, doctorId: docId }, { $set: { doctorUnread: 0 } });
     res.json({ success: true });
   } catch (error) {
     res.json({ success: false, message: error.message });

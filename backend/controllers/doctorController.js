@@ -4,14 +4,15 @@ import jwt from 'jsonwebtoken'
 import appointmentModel from "../models/appointmentModel.js"
 import userModel from "../models/userModel.js"
 import patientMedicalRecordModel from "../models/patientMedicalRecordModel.js"
+import { getPagination } from "../utils/queryOptions.js"
+import { releaseAppointmentSlot } from "../services/appointmentService.js"
 
 const changeAvailability = async (req, res) => {
     try {
 
         const { docId } = req.body
 
-        const docData = await doctorModel.findById(docId)
-        await doctorModel.findByIdAndUpdate(docId, { available: !docData.available })
+        await doctorModel.findByIdAndUpdate(docId, [{ $set: { available: { $not: ["$available"] } } }])
         res.json({ success: true, message: 'Availability Changed' })
 
     } catch (error) {
@@ -23,7 +24,11 @@ const changeAvailability = async (req, res) => {
 const doctorList = async (req, res) => {
     try {
 
-        const doctors = await doctorModel.find({}).select(['-password', '-email'])
+        const doctors = await doctorModel
+            .find({})
+            .select('-password -email -slots_booked')
+            .sort({ available: -1, date: -1 })
+            .lean()
         res.json({ success: true, doctors })
 
     } catch (error) {
@@ -38,7 +43,7 @@ const loginDoctor = async (req, res) => {
     try {
 
         const { email, password } = req.body
-        const doctor = await doctorModel.findOne({email})
+        const doctor = await doctorModel.findOne({email}).select('password').lean()
 
         if (!doctor) {
             return res.json({success:false,message:'Invalid credentials'})
@@ -57,7 +62,7 @@ const loginDoctor = async (req, res) => {
         }
         
     } catch (error) {
-        console.log(error)
+        console.log(error);
         res.json({ success: false, message: error.message })
     }
 
@@ -68,9 +73,13 @@ const appointmentsDoctor = async (req, res) => {
     try {
 
         const { docId } = req.body
-        const appointments = await appointmentModel.find({ docId })
+        const { limit, skip, page } = getPagination(req.query)
+        const [appointments, total] = await Promise.all([
+            appointmentModel.find({ docId }).sort({ date: -1 }).skip(skip).limit(limit).lean(),
+            appointmentModel.countDocuments({ docId })
+        ])
 
-        res.json({ success:true, appointments})
+        res.json({ success:true, appointments, pagination: { page, limit, total }})
         
     } catch (error) {
        console.log(error)
@@ -84,11 +93,11 @@ const appointmentComplete = async (req,res) => {
 
         const { docId, appointmentId } = req.body
 
-        const appointmentData = await appointmentModel.findById(appointmentId)
+        const appointmentData = await appointmentModel.findById(appointmentId).select('docId').lean()
 
         if (appointmentData && appointmentData.docId === docId) {
 
-            await appointmentModel.findByIdAndUpdate(appointmentId, {isCompleted: true})
+            await appointmentModel.updateOne({ _id: appointmentId, docId }, { $set: { isCompleted: true } })
             return res.json({success:true,message:'Appointment Completed'})
         
         } else {
@@ -107,11 +116,15 @@ const appointmentCancel = async (req,res) => {
 
         const { docId, appointmentId } = req.body
 
-        const appointmentData = await appointmentModel.findById(appointmentId)
+        const appointmentData = await appointmentModel.findOneAndUpdate(
+            { _id: appointmentId, docId },
+            { $set: { cancelled: true } },
+            { new: true }
+        ).select('docId slotDate slotTime').lean()
 
-        if (appointmentData && appointmentData.docId === docId) {
+        if (appointmentData) {
 
-            await appointmentModel.findByIdAndUpdate(appointmentId, {cancelled: true})
+            await releaseAppointmentSlot(appointmentData)
             return res.json({success:true,message:'Appointment Cancelled'})
         
         } else {
@@ -130,29 +143,34 @@ const doctorDashboard = async (req, res) => {
     try {
         const { docId } = req.body
 
-        const appointments = await appointmentModel.find({ docId })
+        const [summary] = await appointmentModel.aggregate([
+            { $match: { docId } },
+            {
+                $group: {
+                    _id: null,
+                    appointments: { $sum: 1 },
+                    patients: { $addToSet: "$userId" },
+                    earnings: {
+                        $sum: {
+                            $cond: [
+                                { $or: ["$isCompleted", "$payment"] },
+                                "$amount",
+                                0
+                            ]
+                        }
+                    }
+                }
+            },
+            { $project: { _id: 0, appointments: 1, patients: { $size: "$patients" }, earnings: 1 } }
+        ])
 
-        let earnings = 0
-
-        appointments.forEach((item) => {
-            if (item.isCompleted || item.payment) {
-                earnings += item.amount
-            }
-        })
-
-        let patients = []
-
-        appointments.forEach((item) => {              // ✅ was 'items', now 'item'
-            if (!patients.includes(item.userId)) {
-                patients.push(item.userId)
-            }
-        })
+        const latestAppointments = await appointmentModel.find({ docId }).sort({ date: -1 }).limit(5).lean()
 
         const dashData = {
-            earnings,
-            appointments: appointments.length,
-            patients: patients.length,
-            latestAppointments: appointments.reverse().slice(0, 5)
+            earnings: summary?.earnings || 0,
+            appointments: summary?.appointments || 0,
+            patients: summary?.patients || 0,
+            latestAppointments
         }
 
         res.json({ success: true, dashData })
@@ -170,7 +188,7 @@ const doctorProfile = async (req,res) => {
     try {
 
         const {docId} = req.body
-        const profileData = await doctorModel.findById(docId).select('-password')
+        const profileData = await doctorModel.findById(docId).select('-password').lean()
 
         res.json({success:true, profileData})
         
@@ -206,22 +224,37 @@ const getDoctorPatients = async (req, res) => {
         const { docId } = req.body
 
         // Get all appointments for this doctor
-        const appointments = await appointmentModel.find({ docId }).populate('userId', 'name email phone image')
+        const { limit } = getPagination(req.query)
+        const appointments = await appointmentModel
+            .find({ docId })
+            .sort({ date: -1 })
+            .select('userId slotDate _id')
+            .limit(limit * 3)
+            .lean()
 
         // Get unique patients (avoid duplicates)
         const patientsMap = new Map()
 
         for (const appointment of appointments) {
-            if (appointment.userId && !patientsMap.has(appointment.userId._id.toString())) {
-                patientsMap.set(appointment.userId._id.toString(), {
-                    ...appointment.userId.toObject(),
+            if (appointment.userId && !patientsMap.has(appointment.userId)) {
+                patientsMap.set(appointment.userId, {
+                    userId: appointment.userId,
                     lastAppointment: appointment.slotDate,
                     appointmentId: appointment._id
                 })
             }
         }
 
-        const patients = Array.from(patientsMap.values())
+        const patientIds = Array.from(patientsMap.keys()).slice(0, limit)
+        const patientDocs = await userModel
+            .find({ _id: { $in: patientIds } })
+            .select('name email phone image')
+            .lean()
+
+        const patients = patientDocs.map((patient) => ({
+            ...patient,
+            ...patientsMap.get(patient._id.toString())
+        }))
 
         res.json({ success: true, patients })
 
@@ -241,26 +274,20 @@ const addDiagnosis = async (req, res) => {
         }
 
         // Get doctor info for medical record
-        const doctor = await doctorModel.findById(docId).select('name speciality')
+        const doctor = await doctorModel.findById(docId).select('name speciality').lean()
 
         if (!doctor) {
             return res.json({ success: false, message: "Doctor not found" })
         }
 
         // Get patient info
-        const patient = await userModel.findById(userId)
+        const patient = await userModel.exists({ _id: userId })
 
         if (!patient) {
             return res.json({ success: false, message: "Patient not found" })
         }
 
         // Create or update medical record
-        let medicalRecord = await patientMedicalRecordModel.findOne({ userId })
-
-        if (!medicalRecord) {
-            medicalRecord = new patientMedicalRecordModel({ userId })
-        }
-
         // Add consultation to history
         const consultationEntry = {
             appointmentId: null,
@@ -273,10 +300,11 @@ const addDiagnosis = async (req, res) => {
             notes: notes || ""
         }
 
-        medicalRecord.consultationHistory.push(consultationEntry)
-        medicalRecord.lastUpdated = Date.now()
-
-        await medicalRecord.save()
+        const medicalRecord = await patientMedicalRecordModel.findOneAndUpdate(
+            { userId },
+            { $push: { consultationHistory: consultationEntry }, $set: { lastUpdatedBy: docId, lastUpdatedByRole: "doctor" } },
+            { upsert: true, new: true }
+        )
 
         res.json({ success: true, message: "Diagnosis added successfully", medicalRecord })
 
@@ -291,7 +319,7 @@ const getPatientMedicalRecord = async (req, res) => {
     try {
         const { userId } = req.body
 
-        const medicalRecord = await patientMedicalRecordModel.findOne({ userId })
+        const medicalRecord = await patientMedicalRecordModel.findOne({ userId }).lean()
 
         if (!medicalRecord) {
             return res.json({ success: true, medicalRecord: { userId, consultationHistory: [], medicalHistory: [], labHistory: [], allergies: [] } })

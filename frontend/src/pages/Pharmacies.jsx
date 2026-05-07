@@ -1,5 +1,6 @@
 import React, { useContext, useEffect, useState } from "react";
 import axios from "axios";
+import { Link } from "react-router-dom";
 import { AppContext } from "../context/AppContext";
 import { toast } from "react-toastify";
 
@@ -45,27 +46,30 @@ const Pharmacies = () => {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {pharmacies.map((p) => (
-              <div key={p._id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition">
-                {p.logo ? (
-                  <img src={p.logo} alt={p.name} className="w-16 h-16 rounded-lg object-contain mb-4" />
-                ) : (
-                  <div className="w-16 h-16 rounded-lg bg-indigo-50 flex items-center justify-center text-3xl mb-4">💊</div>
-                )}
-                <h3 className="font-bold text-gray-800 text-lg">{p.name}</h3>
-                {p.address && <p className="text-sm text-gray-500 mt-1">📍 {p.address}</p>}
-                {p.phone && <p className="text-sm text-gray-500 mt-1">📞 {p.phone}</p>}
-                {p.operatingHours && (
-                  <p className="text-xs text-indigo-600 mt-2">🕐 {p.operatingHours}</p>
-                )}
-                {p.email && (
-                  <a
-                    href={`mailto:${p.email}`}
-                    className="mt-3 inline-block text-xs text-indigo-600 underline hover:text-indigo-800"
-                  >
-                    {p.email}
-                  </a>
-                )}
-              </div>
+              <Link to={`/pharmacy/${p._id}`} key={p._id} className="block">
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition cursor-pointer">
+                  {p.logo ? (
+                    <img src={p.logo} alt={p.name} className="w-16 h-16 rounded-lg object-contain mb-4" />
+                  ) : (
+                    <div className="w-16 h-16 rounded-lg bg-indigo-50 flex items-center justify-center text-3xl mb-4">💊</div>
+                  )}
+                  <h3 className="font-bold text-gray-800 text-lg">{p.name}</h3>
+                  {p.address && <p className="text-sm text-gray-500 mt-1">📍 {p.address}</p>}
+                  {p.phone && <p className="text-sm text-gray-500 mt-1">📞 {p.phone}</p>}
+                  {p.operatingHours && (
+                    <p className="text-xs text-indigo-600 mt-2">🕐 {p.operatingHours}</p>
+                  )}
+                  {p.email && (
+                    <a
+                      href={`mailto:${p.email}`}
+                      className="mt-3 inline-block text-xs text-indigo-600 underline hover:text-indigo-800"
+                      onClick={(e)=>e.stopPropagation()}
+                    >
+                      {p.email}
+                    </a>
+                  )}
+                </div>
+              </Link>
             ))}
           </div>
         )}

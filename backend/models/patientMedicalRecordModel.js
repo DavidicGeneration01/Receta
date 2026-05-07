@@ -66,6 +66,9 @@ const patientMedicalRecordSchema = new mongoose.Schema({
   lastUpdatedByRole: { type: String, enum: ["doctor", "admin"], default: "doctor" },
 }, { timestamps: true });
 
+patientMedicalRecordSchema.index({ userId: 1 }, { unique: true });
+patientMedicalRecordSchema.index({ "laboratoryHistory.labBookingId": 1 });
+
 const patientMedicalRecordModel =
   mongoose.models.patientMedicalRecord ||
   mongoose.model("patientMedicalRecord", patientMedicalRecordSchema);

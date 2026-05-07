@@ -16,6 +16,9 @@ const pharmacyProductSchema = new mongoose.Schema(
   }
 );
 
+pharmacyProductSchema.index({ pharmacyId: 1, category: 1, productName: 1 });
+pharmacyProductSchema.index({ pharmacyId: 1, stock: 1 });
+
 const pharmacyProductModel = mongoose.models.pharmacyProduct || mongoose.model("pharmacyProduct", pharmacyProductSchema);
 
 export default pharmacyProductModel;

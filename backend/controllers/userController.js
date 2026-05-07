@@ -10,6 +10,8 @@ import labTestModel from '../models/labTestModel.js'
 import patientMedicalRecordModel from '../models/patientMedicalRecordModel.js'
 import conversationModel from '../models/conversationModel.js'
 import Flutterwave from 'flutterwave-node-v3'
+import { getPagination } from "../utils/queryOptions.js"
+import { releaseAppointmentSlot } from "../services/appointmentService.js"
 
 // Initialize Flutterwave with your keys
 const flw = new Flutterwave(
@@ -56,7 +58,7 @@ const registerUser = async (req, res) => {
 const loginUser = async (req, res) => {
     try {
         const { email, password } = req.body
-        const user = await userModel.findOne({ email })
+        const user = await userModel.findOne({ email }).select('password').lean()
 
         if (!user) {
             return res.json({ success: false, message: 'User does not exist' })
@@ -81,7 +83,7 @@ const loginUser = async (req, res) => {
 const getProfile = async (req, res) => {
     try {
         const { userId } = req.body
-        const userData = await userModel.findById(userId).select('-password')
+        const userData = await userModel.findById(userId).select('-password').lean()
         res.json({ success: true, userData })
 
     } catch (error) {
@@ -127,30 +129,28 @@ const bookAppointment = async (req, res) => {
     try {
         const { userId, docId, slotDate, slotTime } = req.body
 
-        const docData = await doctorModel.findById(docId).select('-password')
+        const docData = await doctorModel.findById(docId).select('-password').lean()
 
-        if (!docData.available) {
+        if (!docData || !docData.available) {
             return res.json({ success: false, message: 'Doctor not available' })
         }
 
-        let slots_booked = docData.slots_booked
+        const slotUpdate = await doctorModel.updateOne(
+            { _id: docId, available: true, [`slots_booked.${slotDate}`]: { $ne: slotTime } },
+            { $addToSet: { [`slots_booked.${slotDate}`]: slotTime } }
+        )
 
-        // checking for slot availability
-        if (slots_booked[slotDate]) {
-            if (slots_booked[slotDate].includes(slotTime)) {
-                return res.json({ success: false, message: 'Slot not available' })
-            } else {
-                slots_booked[slotDate].push(slotTime)
-            }
-        } else {
-            slots_booked[slotDate] = []
-            slots_booked[slotDate].push(slotTime)
+        if (!slotUpdate.modifiedCount) {
+            return res.json({ success: false, message: 'Slot not available' })
         }
 
-        const userData = await userModel.findById(userId).select('-password')
+        const userData = await userModel.findById(userId).select('-password').lean()
+        if (!userData) {
+            await releaseAppointmentSlot({ docId, slotDate, slotTime })
+            return res.json({ success: false, message: 'User not found' })
+        }
 
-        // FIX: Convert to plain object before deleting a field
-        const docDataPlain = docData.toObject()
+        const docDataPlain = { ...docData }
         delete docDataPlain.slots_booked
 
         // Payment Calculation
@@ -160,14 +160,14 @@ const bookAppointment = async (req, res) => {
 
         const serviceCharge = Number((docFees * serviceRate).toFixed(2))
         const vat = Number(((docFees + serviceCharge) * vatRate).toFixed(2))
-        const totalAmount = Number((docFees + serviceCharge + vat).toFixed(2))
-
         const appointmentData = {
             userId,
             docId,
             userData,
             docData: docDataPlain,   // ← now image and all fields are preserved
             amount: docData.fees,
+            serviceCharge,
+            vat,
             slotTime,
             slotDate,
             date: Date.now()
@@ -176,31 +176,24 @@ const bookAppointment = async (req, res) => {
         const newAppointment = new appointmentModel(appointmentData)
         const savedAppointment = await newAppointment.save()
 
-        await doctorModel.findByIdAndUpdate(docId, { slots_booked })
-
         // AUTO-CREATE CONVERSATION FOR APPOINTMENT
         try {
             // Check if conversation already exists
-            let conversation = await conversationModel.findOne({
-                userId,
-                docId
-            })
-
-            // If no conversation exists, create one
-            if (!conversation) {
-                const conversationData = {
+            await conversationModel.findOneAndUpdate(
+                { userId, doctorId: docId, appointmentId: savedAppointment._id },
+                {
+                    $setOnInsert: {
                     participants: [
                         { id: userId, type: "user", name: userData.name },
                         { id: docId, type: "doctor", name: docData.name }
                     ],
                     userId,
-                    docId,
+                    doctorId: docId,
                     appointmentId: savedAppointment._id
                 }
-
-                conversation = new conversationModel(conversationData)
-                await conversation.save()
-            }
+                },
+                { upsert: true, new: true }
+            )
         } catch (convError) {
             console.log('Conversation creation error:', convError)
             // Don't fail appointment if conversation creation fails
@@ -218,8 +211,12 @@ const bookAppointment = async (req, res) => {
 const listAppointment = async (req, res) => {
     try {
         const { userId } = req.body
-        const appointments = await appointmentModel.find({ userId })
-        res.json({ success: true, appointments })
+        const { limit, skip, page } = getPagination(req.query)
+        const [appointments, total] = await Promise.all([
+            appointmentModel.find({ userId }).sort({ date: -1 }).skip(skip).limit(limit).lean(),
+            appointmentModel.countDocuments({ userId })
+        ])
+        res.json({ success: true, appointments, pagination: { page, limit, total } })
 
     } catch (error) {
         console.log(error)
@@ -232,21 +229,17 @@ const cancelAppointment = async (req, res) => {
     try {
         const { userId, appointmentId } = req.body
 
-        const appointmentData = await appointmentModel.findById(appointmentId)
+        const appointmentData = await appointmentModel.findOneAndUpdate(
+            { _id: appointmentId, userId },
+            { $set: { cancelled: true } },
+            { new: true }
+        ).select('docId slotDate slotTime').lean()
 
-        if (appointmentData.userId !== userId) {
+        if (!appointmentData) {
             return res.json({ success: false, message: 'Unauthorized action' })
         }
 
-        await appointmentModel.findByIdAndUpdate(appointmentId, { cancelled: true })
-
-        const { docId, slotDate, slotTime } = appointmentData
-        const doctorData = await doctorModel.findById(docId)
-
-        let slots_booked = doctorData.slots_booked
-        slots_booked[slotDate] = slots_booked[slotDate].filter(e => e !== slotTime)
-
-        await doctorModel.findByIdAndUpdate(docId, { slots_booked })
+        await releaseAppointmentSlot(appointmentData)
 
         res.json({ success: true, message: 'Appointment Cancelled' })
 
@@ -261,7 +254,7 @@ const paymentFlutterwave = async (req, res) => {
     try {
         const { appointmentId } = req.body
 
-        const appointmentData = await appointmentModel.findById(appointmentId)
+        const appointmentData = await appointmentModel.findById(appointmentId).select('amount cancelled').lean()
 
         if (!appointmentData || appointmentData.cancelled) {
             return res.json({ success: false, message: "Appointment cancelled or not found" })
@@ -326,7 +319,7 @@ const bookLabTest = async (req, res) => {
             return res.json({ success: false, message: "Missing required fields" })
         }
 
-        const labTest = await labTestModel.findById(testId)
+        const labTest = await labTestModel.findById(testId).select('price').lean()
         if (!labTest) {
             return res.json({ success: false, message: "Lab test not found" })
         }
@@ -359,9 +352,19 @@ const getUserLabBookings = async (req, res) => {
     try {
         const { userId } = req.body
 
-        const bookings = await labBookingModel.find({ userId }).populate('labId', 'name phone address').populate('testId', 'testName price')
+        const { limit, skip, page } = getPagination(req.query)
+        const [bookings, total] = await Promise.all([
+            labBookingModel.find({ userId })
+                .populate('labId', 'name phone address')
+                .populate('testId', 'testName price')
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .lean(),
+            labBookingModel.countDocuments({ userId })
+        ])
 
-        res.json({ success: true, bookings })
+        res.json({ success: true, bookings, pagination: { page, limit, total } })
 
     } catch (error) {
         console.log(error)
@@ -374,13 +377,15 @@ const cancelLabBooking = async (req, res) => {
     try {
         const { userId, bookingId } = req.body
 
-        const booking = await labBookingModel.findById(bookingId)
+        const booking = await labBookingModel.findOneAndUpdate(
+            { _id: bookingId, userId },
+            { $set: { status: "cancelled" } },
+            { new: true }
+        ).select('_id').lean()
 
-        if (!booking || booking.userId.toString() !== userId) {
+        if (!booking) {
             return res.json({ success: false, message: "Unauthorized action" })
         }
-
-        await labBookingModel.findByIdAndUpdate(bookingId, { status: "cancelled" })
 
         res.json({ success: true, message: "Lab booking cancelled" })
 
@@ -395,13 +400,11 @@ const getMedicalRecord = async (req, res) => {
     try {
         const { userId } = req.body
 
-        let medicalRecord = await patientMedicalRecordModel.findOne({ userId })
-
-        if (!medicalRecord) {
-            // Create new medical record if it doesn't exist
-            const newRecord = new patientMedicalRecordModel({ userId })
-            medicalRecord = await newRecord.save()
-        }
+        const medicalRecord = await patientMedicalRecordModel.findOneAndUpdate(
+            { userId },
+            { $setOnInsert: { userId } },
+            { upsert: true, new: true }
+        ).lean()
 
         res.json({ success: true, medicalRecord })
 
@@ -442,7 +445,7 @@ const updateMedicalRecord = async (req, res) => {
                 return res.json({ success: false, message: "Invalid record type" })
         }
 
-        updateQuery.lastUpdated = Date.now()
+        updateQuery.$set = { ...(updateQuery.$set || {}), lastUpdated: Date.now() }
 
         const updatedRecord = await patientMedicalRecordModel.findOneAndUpdate(
             { userId },

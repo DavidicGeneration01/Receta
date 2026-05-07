@@ -21,6 +21,9 @@ const doctorSchema = new mongoose.Schema(
   { minimize: false }
 );
 
+doctorSchema.index({ available: 1, speciality: 1 });
+doctorSchema.index({ date: -1 });
+
 const doctorModel = mongoose.models.doctor || mongoose.model("doctor", doctorSchema);
 
 export default doctorModel;

@@ -11,6 +11,10 @@ const conversationSchema = new mongoose.Schema({
   isActive: { type: Boolean, default: true },
 }, { timestamps: true });
 
+conversationSchema.index({ userId: 1, isActive: 1, lastMessageAt: -1 });
+conversationSchema.index({ doctorId: 1, isActive: 1, lastMessageAt: -1 });
+conversationSchema.index({ userId: 1, doctorId: 1, appointmentId: 1 });
+
 const conversationModel =
   mongoose.models.conversation || mongoose.model("conversation", conversationSchema);
 export default conversationModel;

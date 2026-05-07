@@ -5,6 +5,8 @@ import doctorModel from "../models/doctorModel.js"
 import jwt from 'jsonwebtoken'
 import appointmentModel from "../models/appointmentModel.js"
 import userModel from "../models/userModel.js"
+import { getPagination } from "../utils/queryOptions.js"
+import { releaseAppointmentSlot } from "../services/appointmentService.js"
 
 // API for adding doctor
 const addDoctor = async (req, res) => {
@@ -84,7 +86,7 @@ const loginAdmin = async (req, res) => {
 const allDoctors = async (req,res) => {
     try {
         
-        const doctors = await doctorModel.find({}).select('-password')
+        const doctors = await doctorModel.find({}).select('-password').sort({ date: -1 }).lean()
         res.json({success:true,doctors})
 
     } catch (error) {
@@ -98,9 +100,13 @@ const allDoctors = async (req,res) => {
 // API to get all appointments list
 const appointmentsAdmin = async (req, res) => {
     try {
-        
-        const appointments = await appointmentModel.find({})
-        res.json({success:true,appointments})
+        const { limit, skip, page } = getPagination(req.query)
+        const [appointments, total] = await Promise.all([
+            appointmentModel.find({}).sort({ date: -1 }).skip(skip).limit(limit).lean(),
+            appointmentModel.countDocuments({})
+        ])
+
+        res.json({success:true, appointments, pagination: { page, limit, total }})
 
     } catch (error) {
         console.log(error)
@@ -114,17 +120,16 @@ const appointmentCancel = async (req, res) => {
     try {
         const { appointmentId } = req.body
 
-        const appointmentData = await appointmentModel.findById(appointmentId)
+        const appointmentData = await appointmentModel
+            .findByIdAndUpdate(appointmentId, { cancelled: true }, { new: true })
+            .select('docId slotDate slotTime')
+            .lean()
 
-        await appointmentModel.findByIdAndUpdate(appointmentId, { cancelled: true })
+        if (!appointmentData) {
+            return res.json({ success: false, message: 'Appointment not found' })
+        }
 
-        const { docId, slotDate, slotTime } = appointmentData
-        const doctorData = await doctorModel.findById(docId)
-
-        let slots_booked = doctorData.slots_booked
-        slots_booked[slotDate] = slots_booked[slotDate].filter(e => e !== slotTime)
-
-        await doctorModel.findByIdAndUpdate(docId, { slots_booked })
+        await releaseAppointmentSlot(appointmentData)
 
         res.json({ success: true, message: 'Appointment Cancelled' })
 
@@ -139,15 +144,18 @@ const adminDashboard = async (req, res) => {
 
     try {
 
-        const doctors = await doctorModel.find({})
-        const users = await userModel.find({})
-        const appointments = await appointmentModel.find({})
+        const [doctors, users, appointments, latestAppointments] = await Promise.all([
+            doctorModel.countDocuments({}),
+            userModel.countDocuments({}),
+            appointmentModel.countDocuments({}),
+            appointmentModel.find({}).sort({ date: -1 }).limit(5).lean()
+        ])
 
         const dashData = {
-            doctors: doctors.length,
-            appointments:appointments.length,
-            patients: users.length,
-            latestAppointments: appointments.reverse().slice(0,5)
+            doctors,
+            appointments,
+            patients: users,
+            latestAppointments
         }
 
         res.json({success:true,dashData})
