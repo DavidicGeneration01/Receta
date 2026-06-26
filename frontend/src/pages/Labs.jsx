@@ -26,6 +26,8 @@ const Labs = () => {
   const [tests, setTests] = useState([]);
   const [selectedTests, setSelectedTests] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [labsLoading, setLabsLoading] = useState(false);
+  const [labsError, setLabsError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
 
@@ -34,48 +36,50 @@ const Labs = () => {
   }, []);
 
   const fetchLabs = async () => {
+    setLabsLoading(true);
+    setLabsError("");
     try {
       const { data } = await axios.get(`${backendUrl}/api/lab/list`);
-        if (data.success) {
-          const raw = data.labs || [];
+      if (!data.success) {
+        const message = data.message || "Failed to load labs";
+        setLabsError(message);
+        toast.error(message);
+        return;
+      }
 
-          // Group labs by name (case-insensitive)
-          const groups = raw.reduce((acc, lab) => {
-            const name = (lab.name || "").toLowerCase().trim();
-            if (!acc[name]) acc[name] = [];
-            acc[name].push(lab);
-            return acc;
-          }, {});
+      const raw = data.labs || [];
 
-          // For each group prefer the entry that has an address, then one with time details, then one with a logo.
-          const preferred = Object.values(groups).map((group) => {
-            group.sort((a, b) => {
-              const aHasAddress = a.address && String(a.address).trim() !== "" ? 1 : 0;
-              const bHasAddress = b.address && String(b.address).trim() !== "" ? 1 : 0;
-              if (bHasAddress - aHasAddress) return bHasAddress - aHasAddress;
+      const groups = raw.reduce((acc, lab) => {
+        const name = (lab.name || lab._id || "").toLowerCase().trim();
+        if (!acc[name]) acc[name] = [];
+        acc[name].push(lab);
+        return acc;
+      }, {});
 
-              const aHoursHasDigit = /\d/.test(a.operatingHours || "") ? 1 : 0;
-              const bHoursHasDigit = /\d/.test(b.operatingHours || "") ? 1 : 0;
-              if (bHoursHasDigit - aHoursHasDigit) return bHoursHasDigit - aHoursHasDigit;
+      const finalList = Object.values(groups).map((group) => {
+        group.sort((a, b) => {
+          const aHasAddress = a.address && String(a.address).trim() !== "" ? 1 : 0;
+          const bHasAddress = b.address && String(b.address).trim() !== "" ? 1 : 0;
+          if (bHasAddress - aHasAddress) return bHasAddress - aHasAddress;
 
-              const aHasLogo = a.logo ? 1 : 0;
-              const bHasLogo = b.logo ? 1 : 0;
-              return bHasLogo - aHasLogo;
-            });
-            return group[0];
-          });
+          const aHasHours = a.operatingHours && String(a.operatingHours).trim() !== "" ? 1 : 0;
+          const bHasHours = b.operatingHours && String(b.operatingHours).trim() !== "" ? 1 : 0;
+          if (bHasHours - aHasHours) return bHasHours - aHasHours;
 
-          // Remove any remaining entries that have neither address nor operating hours
-          const finalList = preferred.filter((lab) => {
-            const hasAddress = lab.address && String(lab.address).trim() !== "";
-            const hasHours = lab.operatingHours && String(lab.operatingHours).trim() !== "";
-            return hasAddress || hasHours;
-          });
+          const aHasLogo = a.logo ? 1 : 0;
+          const bHasLogo = b.logo ? 1 : 0;
+          return bHasLogo - aHasLogo;
+        });
+        return group[0];
+      });
 
-          setLabs(finalList);
-        }
-    } catch {
+      setLabs(finalList);
+    } catch (error) {
+      const message = error.response?.data?.message || error.message || "Failed to load labs";
+      setLabsError(message);
       toast.error("Failed to load labs");
+    } finally {
+      setLabsLoading(false);
     }
   };
 
@@ -146,6 +150,21 @@ const Labs = () => {
       <div className="max-w-6xl mx-auto px-4 py-8">
         {/* Lab Selection Cards */}
         <h2 className="text-xl font-semibold text-gray-700 mb-4">Select a Laboratory</h2>
+        {labsLoading && (
+          <p className="text-gray-400 bg-white border border-gray-100 rounded-lg p-4 mb-4">
+            Loading laboratories...
+          </p>
+        )}
+        {!labsLoading && labsError && (
+          <p className="text-red-600 bg-red-50 border border-red-100 rounded-lg p-4 mb-4">
+            {labsError}
+          </p>
+        )}
+        {!labsLoading && !labsError && labs.length === 0 && (
+          <p className="text-gray-500 bg-white border border-gray-100 rounded-lg p-4 mb-4">
+            No laboratories are available yet.
+          </p>
+        )}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
           {labs.map((lab, idx) => (
             <div

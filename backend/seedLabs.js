@@ -4,6 +4,7 @@
 
 import mongoose from "mongoose";
 import dotenv from "dotenv";
+import { withDefaultDatabase } from "./config/mongodb.js";
 dotenv.config();
 
 // ── Lab Model (inline so you can run this standalone) ────────────────────────
@@ -115,7 +116,7 @@ const getTestsForLab = (labId, labSlug) => {
 const seedLabs = async () => {
   try {
     console.log("🔌 Connecting to MongoDB...");
-    await mongoose.connect(process.env.MONGODB_URI);
+    await mongoose.connect(withDefaultDatabase(process.env.MONGODB_URI));
     console.log("✅ Connected to MongoDB\n");
 
     for (const labData of labsData) {

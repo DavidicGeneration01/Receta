@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import 'dotenv/config';
+import swaggerUi from 'swagger-ui-express'
+import swaggerSpec from './config/swagger.js'
 import connectDB from './config/mongodb.js';
 import connectCloudinary from './config/cloudinary.js';
 import adminRouter from './routes/adminRoute.js';
@@ -12,6 +14,7 @@ import pharmacyProductRouter from './routes/pharmacyProductRoute.js';
 import orderRouter from './routes/orderRoute.js';
 import messageRouter from './routes/messageRoute.js';
 import medicalRecordRouter from './routes/medicalRecordRoute.js';
+import logger from './scripts/Logger.js';
 
 
 
@@ -19,7 +22,6 @@ import medicalRecordRouter from './routes/medicalRecordRoute.js';
 // app config
 const app = express()
 const port = process.env.PORT || 4000
-connectDB()
 connectCloudinary()
 
 // middlewares
@@ -40,11 +42,39 @@ app.use('/api/message',messageRouter)
 app.use('/api/medical-record',medicalRecordRouter)
 // localhost:4000/api/admin/add-doctor
 
+// Swagger UI
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec))
+
+// Raw swagger JSON for debugging
+app.get('/swagger.json', (req, res) => {
+  try {
+    const count = swaggerSpec && swaggerSpec.paths ? Object.keys(swaggerSpec.paths).length : 0
+    logger.debug(`Swagger spec paths: ${count}`)
+    res.json(swaggerSpec)
+  } catch (err) {
+    logger.error('Error returning swagger spec:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+
 app.get('/', (req, res) => {
   res.send('Api working!')
 })
 
 
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`)
-})
+const startServer = async () => {
+  try {
+    await connectDB()
+
+    app.listen(port, () => {
+      logger.info(`Server running on port ${port}`)
+    })
+  } catch (error) {
+    logger.error("Failed to start server:", error.message)
+    logger.error("Check MONGODB_URI and make sure your current IP address is allowed in MongoDB Atlas Network Access.")
+    process.exit(1)
+  }
+}
+
+startServer()
